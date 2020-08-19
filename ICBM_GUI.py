@@ -1,13 +1,15 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QMessageBox
-import mysql.connector
+from PyQt5.QtWidgets import QMessageBox, QInputDialog, QWidget, QDialog
+import mysql.connector, math
 import ICBM
 
 class GUIClass():
     ### 쓰레드, http 공부
     def __init__(self, ui):
         Form.resize(680, 333)
-        self.idx = 0
+        self.id = ""
+        self.roomTitle = ""
+        self.pageNum = 0
         self.checked = False
         self.window = ui
 
@@ -17,6 +19,15 @@ class GUIClass():
         self.window.idDuplicationCheckButton.clicked.connect(self.idDuplicationCheck)
         self.window.registerConfirmButton.clicked.connect(self.register)
         self.window.registerCancelButton.clicked.connect(self.cancelRegister)
+
+        self.window.makeRoomButton.clicked.connect(self.moveMakeRoomPage)
+        self.window.leftButton.clicked.connect(self.moveToLeft)
+        self.window.rightButton.clicked.connect(self.moveToRight)
+
+        self.window.roomPw.setEnabled(False)
+        self.window.privateRoomCheck.stateChanged.connect(self.unEditable)
+        self.window.roomConfirmButton.clicked.connect(self.makeRoom)
+        self.window.roomCancelButton.clicked.connect(self.cancelMakeRoom)
 
     ### loginPage - 0
     def moveRegisterPage(self): # 회원가입 페이지로 이동
@@ -35,7 +46,7 @@ class GUIClass():
                 self.idExist = True
             if self.idExist and self.pw == row[2]:
                 self.pwExist = True
-                self.setIdx(row[0])
+                self.setId(row[1])
                 break
 
         if not self.idExist:
@@ -56,13 +67,15 @@ class GUIClass():
             self.window.idInput.clear()
             self.window.pwInput.clear()
             Form.resize(1534, 973)
+            self.setLobbyTitle()
+            self.printRoom()
             self.window.stackedWidget.setCurrentIndex(2)
             # 로그인 시 서버에 연결 필요?
         
-    def setIdx(self, _idx): # 로그인된 회원의 idx값 받아오기
-        self.idx = _idx
-    def getIdx(self):
-        return self.idx
+    def setId(self, _id): # 로그인된 회원의 idx값 받아오기
+        self.id = _id
+    def getId(self):
+        return self.id
 
     ### registerPage - 1
     def idDuplicationCheck(self): # 아이디 중복확인
@@ -117,24 +130,119 @@ class GUIClass():
         return self.checked
     
     ### mainPage - 2
-    def printRoom(self, _id): # 현재 생성되어있는 방 리스트 gridLayout에 출력, id 받아와서 제목에 출력(이건 새로 함수 만들까 생각중)
-        pass
-    def movePage(self): # 방의 갯수가 10개를 넘어갈 경우 활성화, 화살표 버튼으로 이전 10개, 다음 10개 출력
-        pass
-    def enterRoom(self): # 생성된 방에 입장
-        pass
+    def setLobbyTitle(self):
+        self.window.clientName.setText(self.getId() + "님 안녕하세요.")
+    def printRoom(self): # 현재 생성되어있는 방 리스트 gridLayout에 출력
+        self.i = 0
+        self.startNum = self.getPageNum() * 10
+        self.sql = "SELECT * FROM room LIMIT %s, 10"
+        cursor.execute(self.sql, (self.startNum, ))
+
+        for row in cursor.fetchall():
+            self.newNum = QtWidgets.QLabel((str)(self.i + self.startNum + 1))
+            self.newLabel = QtWidgets.QLabel(row[1])
+            self.newButton = QtWidgets.QPushButton('입장')
+            self.newButton.clicked.connect(lambda state, idx=row[0]: self.enterRoom(idx))
+            self.newNum.setStyleSheet("background-color: black;" "color: white;")
+            self.newNum.setAlignment(QtCore.Qt.AlignCenter)
+            self.newLabel.setStyleSheet("background-color: black;" "color: white;")
+            self.newNum.setMaximumWidth(50)
+            self.newButton.setMaximumWidth(90)
+            self.newNum.setMinimumHeight(30)
+            self.newLabel.setMinimumHeight(30)
+            self.newButton.setMinimumHeight(30)
+            self.window.roomList.addWidget(self.newNum, self.i, 0)
+            self.window.roomList.addWidget(self.newLabel, self.i, 1)
+            self.window.roomList.addWidget(self.newButton, self.i, 2)
+            self.i += 1
+
+    def moveToLeft(self):
+        if self.getPageNum() == 0: # 페이지 왼쪽 끝
+            return
+        self.tmp = self.getPageNum()
+        self.setPageNum(self.tmp - 1)
+        self.printRoom()
+    def moveToRight(self):
+        if self.getPageNum() == (math.ceil(self.getPageNum()) // 10 - 1): # 페이지 오른쪽 끝
+            return
+        self.tmp = self.getPageNum()
+        self.setPageNum(self.tmp + 1)
+        self.printRoom()
+
+    def enterRoom(self, _idx): # 생성된 방에 입장
+        self.private = 0
+        self.pw = 0
+        self.sql = "SELECT * FROM room WHERE idx=%s"
+        cursor.execute(self.sql, (_idx, ))
+
+        for row in cursor.fetchall():
+            self.setRoomTitle(row[1])
+            self.private = row[2]
+            self.pw = row[3]
+        
+        if self.private == 0:
+            self.setTitle()
+            self.window.stackedWidget.setCurrentIndex(4)
+        else:
+            while True:
+                text, ok = QInputDialog.getInt(self, '비밀번호', '비밀번호를 입력하세요(숫자만)') # error why?
+                print("did")
+                if ok:
+                    if self.pw != text:
+                        self.msg = QMessageBox()
+                        self.msg.setWindowTitle("pw Error")
+                        self.msg.setText("비밀번호가 틀렸습니다.")
+                        self.msg.exec_()
+                    else:
+                        self.setTitle()
+                        self.window.stackedWidget.setCurrentIndex(4)
+                        break
+        
     def moveMakeRoomPage(self): # 방 만들기 페이지로 이동
-        pass
+        Form.resize(680, 333)
+        self.window.stackedWidget.setCurrentIndex(3)
+    def setPageNum(self, _pageNum):
+        self.pageNum = _pageNum
+    def getPageNum(self):
+        return self.pageNum
+    def setRoomTitle(self, _roomTitle):
+        self.roomTitle = _roomTitle
+    def getRoomTitle(self):
+        return self.roomTitle
 
     ### makeRoomPage - 3
+    def unEditable(self):
+        if not self.window.privateRoomCheck.isChecked():
+            self.window.roomPw.setEnabled(False)
+        else:
+            self.window.roomPw.setEnabled(True)
     def makeRoom(self): # 방 만들기 기능 구현, 제목을 받고, 비밀방인지 아닌지 받고, 비밀방이라면 PW창 활성화
-        pass
+        self.title = self.window.roomTitleInput.text()
+        if self.window.privateRoomCheck.isChecked():
+            self.pw = self.window.roomPw.text()
+            self.sql = "INSERT INTO room(title, private, pw) VALUES(%s, %s, %s)"
+            cursor.execute(self.sql, (self.title, 1, self.pw, ))
+        else:
+            self.sql = "INSERT INTO room(title, private) VALUES(%s, %s)"
+            cursor.execute(self.sql, (self.title, 0, ))
+        con.commit()
+        Form.resize(1534, 973)
+        self.setLobbyTitle()
+        self.printRoom()
+        self.window.stackedWidget.setCurrentIndex(2)
+        # 서버 연결
     def cancelMakeRoom(self): # 방 만들기 취소, mainPage로 돌아감
-        pass
+        self.window.roomTitleInput.clear()
+        self.window.privateRoomCheck.setChecked(False)
+        self.window.roomPw.clear()
+        Form.resize(1534, 973)
+        self.setLobbyTitle()
+        self.printRoom()
+        self.window.stackedWidget.setCurrentIndex(2)
 
     ### room - 4
     def setTitle(self): # 방 제목 받아와서 설정
-        pass
+        self.window.roomTitle.setText(self.getRoomTitle())
     def quitRoom(self): # 방 나가기
         pass
     def getMember(self): # 현재 방의 인원수와 이름을 전부 받아서 출력
@@ -157,7 +265,6 @@ if __name__ == "__main__":
     con = mysql.connector.connect(**config)
     cursor = con.cursor()
     
-
     app = QtWidgets.QApplication(sys.argv)
     Form = QtWidgets.QWidget()
     ui = ICBM.Ui_Form()
