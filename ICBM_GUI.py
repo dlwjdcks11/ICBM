@@ -29,6 +29,8 @@ class GUIClass():
         self.window.roomConfirmButton.clicked.connect(self.makeRoom)
         self.window.roomCancelButton.clicked.connect(self.cancelMakeRoom)
 
+        self.window.quitButton.clicked.connect(self.quitRoom)
+
     ### loginPage - 0
     def moveRegisterPage(self): # 회원가입 페이지로 이동
         self.window.stackedWidget.setCurrentIndex(1)
@@ -185,10 +187,9 @@ class GUIClass():
             self.window.stackedWidget.setCurrentIndex(4)
         else:
             while True:
-                text, ok = QInputDialog.getInt(self, '비밀번호', '비밀번호를 입력하세요(숫자만)') # error why?
-                print("did")
+                text, ok = QInputDialog.getText(Form, '비밀번호', '비밀번호를 입력하세요(숫자만)')
                 if ok:
-                    if self.pw != text:
+                    if self.pw != (int)(text):
                         self.msg = QMessageBox()
                         self.msg.setWindowTitle("pw Error")
                         self.msg.setText("비밀번호가 틀렸습니다.")
@@ -197,6 +198,8 @@ class GUIClass():
                         self.setTitle()
                         self.window.stackedWidget.setCurrentIndex(4)
                         break
+                else:
+                    break
         
     def moveMakeRoomPage(self): # 방 만들기 페이지로 이동
         Form.resize(680, 333)
@@ -244,7 +247,7 @@ class GUIClass():
     def setTitle(self): # 방 제목 받아와서 설정
         self.window.roomTitle.setText(self.getRoomTitle())
     def quitRoom(self): # 방 나가기
-        pass
+        self.window.stackedWidget.setCurrentIndex(2)
     def getMember(self): # 현재 방의 인원수와 이름을 전부 받아서 출력
         pass
     def chat(self): # 명령어, 채팅 등을 받아서 넘김(버튼에 연결) - 클래스로 빼야하나
